@@ -62,22 +62,22 @@ TEMPLATE_ID=test \
 - MULTI_CONCURRENT_COUNT：多模板场景并发数
 6. 执行流程
 冒烟测试
-1. 创建 1 个 sandbox
-2. 执行简单命令(read/write)
-3. 停止/销毁 sandbox
-4. 输出简报（PASS/FAIL）
+- 创建 1 个 sandbox
+- 执行简单命令(read/write)
+- 停止/销毁 sandbox
+- 输出简报（PASS/FAIL）
 功能测试
-1. 构建模板（test_template.py）
-2. 创建 sandbox 并进行读写检查
-3. pause/resume 后再次验证
-4. 生成报告和日志
+- 构建模板（test_template.py）
+- 创建 sandbox 并进行读写检查
+- pause/resume 后再次验证
+- 生成报告和日志
 性能测试
 检查性能
-1. 测试需要的模板是否存在，不存在则自动 build
-2. 运行单模板并发创建
-3. 运行多模板并发创建
-4. 生成报告和日志
-7. 报告与状态定义
+- 测试需要的模板是否存在，不存在则自动 build
+- 运行单模板并发创建
+- 运行多模板并发创建
+- 生成报告和日志
+- 报告与状态定义
 报告路径：
 - 总报告：results/automation-report-*.md
 - 步骤日志：results/*.log
