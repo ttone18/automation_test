@@ -394,7 +394,7 @@ PY"
 
 functional_test() {
   require_cmd python3 || return 1
-
+  run_step "functional_tail_stream_reconnect" "" bash -lc "cd \"${PROJECT_ROOT}\" && python3 test_sandbox_tail_reconnect.py"
   run_step "functional_template_build" "" bash -lc "cd \"${PROJECT_ROOT}\" && TEMPLATE_ALIAS=\"${TEMPLATE_ID}\" python3 test_template.py"
   run_step "functional_create_pause_resume_rw_same_sandbox" "" bash -lc "cd \"${PROJECT_ROOT}\" && export E2B_SANDBOX_ID=\$(python3 test_sandbox_create.py --id-only) && echo \"sandbox_id=\${E2B_SANDBOX_ID}\" && python3 - <<'PY'
 import os
@@ -510,4 +510,3 @@ esac
 
 finalize_report
 exit "${EXIT_CODE}"
-
