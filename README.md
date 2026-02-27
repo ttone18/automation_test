@@ -50,42 +50,51 @@ TEMPLATE_ID=test \
 5. 参数说明
 通用参数
 - TEMPLATE_ID：功能测试默认模板别名
-- 第 2 个位置参数：API_URL（可传空字符串，使用环境变量）
-- 第 3 个位置参数：API_KEY（一般传 "$E2B_API_KEY"）
-性能参数（单模板）
-- SINGLE_TEMPLATE_ID：单模板并发测试所用模板
-- SINGLE_CONCURRENT_COUNT：单模板并发数
-性能参数（多模板）
-- MULTI_TEMPLATE_LIST：多模板候选列表，逗号分隔
-- MULTI_TEMPLATES_PER_TEST：本次测试实际使用模板数
-- MULTI_SANDBOXES_PER_TEMPLATE：每个模板创建的 sandbox 数
-- MULTI_CONCURRENT_COUNT：多模板场景并发数
+  - 第 2 个位置参数：API_URL（可传空字符串，使用环境变量）
+  - 第 3 个位置参数：API_KEY（一般传 "$E2B_API_KEY"）
+
+- 性能参数（单模板）
+  - SINGLE_TEMPLATE_ID：单模板并发测试所用模板
+  - SINGLE_CONCURRENT_COUNT：单模板并发数
+
+- 性能参数（多模板）
+  - MULTI_TEMPLATE_LIST：多模板候选列表，逗号分隔
+  - MULTI_TEMPLATES_PER_TEST：本次测试实际使用模板数
+  - MULTI_SANDBOXES_PER_TEMPLATE：每个模板创建的 sandbox 数
+  - MULTI_CONCURRENT_COUNT：多模板场景并发数
 6. 执行流程
+
 冒烟测试
-- 创建 1 个 sandbox
-- 执行简单命令(read/write)
-- 停止/销毁 sandbox
-- 输出简报（PASS/FAIL）
+  - 创建 1 个 sandbox
+  - 执行简单命令(read/write)
+  - 停止/销毁 sandbox
+  - 输出简报（PASS/FAIL）
+    
 功能测试
-- 构建模板（test_template.py）
-- 创建 sandbox 并进行读写检查
-- pause/resume 后再次验证
-- 生成报告和日志
+  - 构建模板（test_template.py）
+  - 创建 sandbox 并进行读写检查
+  - pause/resume 后再次验证
+  - 生成报告和日志
+    
 性能测试
+
 检查性能
-- 测试需要的模板是否存在，不存在则自动 build
-- 运行单模板并发创建
-- 运行多模板并发创建
-- 生成报告和日志
-- 报告与状态定义
+  - 测试需要的模板是否存在，不存在则自动 build
+  - 运行单模板并发创建
+  - 运行多模板并发创建
+  - 生成报告和日志
+  - 报告与状态定义
+
 报告路径：
-- 总报告：results/automation-report-*.md
-- 步骤日志：results/*.log
+  - 总报告：results/automation-report-*.md
+  - 步骤日志：results/*.log
+
 步骤状态：
-- PASS：执行成功，且没有被识别为阈值/超时问题
-- WARN_THRESHOLD：执行成功但性能阈值未达标（告警，不计入失败）
-- FAIL_ERROR：执行错误（计入失败，并影响退出码）
+  - PASS：执行成功，且没有被识别为阈值/超时问题
+  - WARN_THRESHOLD：执行成功但性能阈值未达标（告警，不计入失败）
+  - FAIL_ERROR：执行错误（计入失败，并影响退出码）
+
 汇总字段：
-- passed：通过数
-- warned：告警数
-- failed：失败数（仅硬失败）
+  - passed：通过数
+  - warned：告警数
+  - failed：失败数（仅硬失败）
