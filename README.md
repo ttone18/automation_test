@@ -19,10 +19,15 @@
 - all：functional + performance（推荐“全量”）
 4. 常用命令
 冒烟测试
+```bash
 TEMPLATE_ID=test ./test-automation.sh smoke "" "$E2B_API_KEY"
+```
 功能测试
+```bash
 TEMPLATE_ID=test ./test-automation.sh functional "" "$E2B_API_KEY"
+```
 性能测试
+```bash
 SINGLE_TEMPLATE_ID=test \
 SINGLE_CONCURRENT_COUNT=60 \
 MULTI_TEMPLATE_LIST="test1,test2,test3" \
@@ -30,7 +35,9 @@ MULTI_TEMPLATES_PER_TEST=3 \
 MULTI_SANDBOXES_PER_TEMPLATE=20 \
 MULTI_CONCURRENT_COUNT=60 \
 ./test-automation.sh performance "" "$E2B_API_KEY"
+```
 功能 + 性能（all)
+```bash
 SINGLE_TEMPLATE_ID=test \
 SINGLE_CONCURRENT_COUNT=60 \
 MULTI_TEMPLATE_LIST="test1,test2,test3" \
@@ -39,6 +46,7 @@ MULTI_SANDBOXES_PER_TEMPLATE=20 \
 MULTI_CONCURRENT_COUNT=60 \
 TEMPLATE_ID=test \
 ./test-automation.sh all "" "$E2B_API_KEY"
+```
 5. 参数说明
 通用参数
 - TEMPLATE_ID：功能测试默认模板别名
