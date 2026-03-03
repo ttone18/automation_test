@@ -11,7 +11,8 @@
 
 ## 2. 脚本入口
 
-- **主入口**：`test-automation.sh`
+- **主入口**：`test-automation.sh`（支持 `-c config.yaml` 从 YAML 加载参数）
+- **配置文件**：`config.example.yaml`（复制为 config.yaml 后编辑）、`load_config.py`（解析器）
 - **子脚本**：
   - `test_template.py` - 模板构建（支持 `TEMPLATE_SOURCE=base` 免私有镜像）
   - `test_template_large_image.py` - 大镜像模板构建（可选）
@@ -37,15 +38,41 @@
 | all | functional + performance（推荐“全量”） |
 | full | smoke + functional + performance（完整回归） |
 
-## 4. 常用命令
+## 4. YAML 配置文件（推荐）
+
+将参数写入 YAML 文件，避免长命令。复制 `config.example.yaml` 为 `config.yaml` 并编辑：
+
+```bash
+cp config.example.yaml config.yaml
+# 编辑 config.yaml，填入 E2B_API_KEY 等
+```
+
+运行示例：
+```bash
+# 使用配置文件，命令更简洁
+./test-automation.sh -c config.yaml performance
+./test-automation.sh --config config.yaml all
+```
+
+配置文件中的参数可被命令行参数覆盖，如 `./test-automation.sh -c config.yaml performance "" "$E2B_API_KEY"` 会用环境变量的 API_KEY 覆盖配置文件中的值。
+
+## 5. 常用命令
 
 ### 冒烟测试
 ```bash
+# 使用配置文件
+./test-automation.sh -c config.yaml smoke
+
+# 或传统方式
 TEMPLATE_ID=test ./test-automation.sh smoke "" "$E2B_API_KEY"
 ```
 
 ### 功能测试
 ```bash
+# 使用配置文件
+./test-automation.sh -c config.yaml functional
+
+# 或传统方式
 TEMPLATE_ID=test ./test-automation.sh functional "" "$E2B_API_KEY"
 ```
 
@@ -69,6 +96,19 @@ MULTI_CONCURRENT_COUNT=60 \
 ./test-automation.sh performance "" "$E2B_API_KEY"
 ```
 
+### 性能 + 稳定性测试（含多并发长时间压测）
+```bash
+# 使用配置文件（在 config.yaml 中设置 ENABLE_STRESS_TEST: 1 等）
+./test-automation.sh -c config.yaml performance
+
+# 或传统方式
+ENABLE_STRESS_TEST=1 \
+STRESS_TRAFFIC_DURATION=5m \
+MULTI_TEMPLATE_STRESS_DURATION=15m \
+TEMPLATE_ID=test \
+./test-automation.sh performance "" "$E2B_API_KEY"
+```
+
 ### 功能 + 性能（all）
 ```bash
 SINGLE_TEMPLATE_ID=test \
@@ -86,7 +126,7 @@ TEMPLATE_ID=test \
 TEMPLATE_ID=test ./test-automation.sh full "" "$E2B_API_KEY"
 ```
 
-## 5. 参数说明
+## 6. 参数说明
 
 ### 通用参数
 - `TEMPLATE_ID`：功能测试默认模板别名
@@ -116,13 +156,21 @@ TEMPLATE_ID=test ./test-automation.sh full "" "$E2B_API_KEY"
 - `SINGLE_TEMPLATE_ID`：单模板并发测试所用模板
 - `SINGLE_CONCURRENT_COUNT`：单模板并发数
 
+### 稳定性测试（可选，`ENABLE_STRESS_TEST=1` 启用）
+- `ENABLE_STRESS_TEST`：`1` 时在 performance 阶段追加长时间稳定性测试
+- `STRESS_SANDBOX_COUNT`：stress-100 创建的 sandbox 数（默认 100）
+- `STRESS_TRAFFIC_VUS`：stress-100 流量并发数（默认 100）
+- `STRESS_TRAFFIC_DURATION`：stress-100 流量持续时间（默认 `3m`）
+- `MULTI_TEMPLATE_STRESS_DURATION`：多模板压力测试持续时间（默认 `30m`）
+- `MULTI_TEMPLATE_STRESS_RATE`：多模板压力请求速率（请求/分钟，默认 60）
+
 ### 性能参数（多模板）
 - `MULTI_TEMPLATE_LIST`：多模板候选列表，逗号分隔
 - `MULTI_TEMPLATES_PER_TEST`：本次测试实际使用模板数
 - `MULTI_SANDBOXES_PER_TEMPLATE`：每个模板创建的 sandbox 数
 - `MULTI_CONCURRENT_COUNT`：多模板场景并发数
 
-## 6. 执行流程
+## 7. 执行流程
 
 ### 冒烟测试
 - 创建 1 个 sandbox
@@ -145,6 +193,9 @@ TEMPLATE_ID=test ./test-automation.sh full "" "$E2B_API_KEY"
 - 检查所需模板是否存在，不存在则自动 build
 - 运行单模板并发创建
 - 运行多模板并发创建
+- （可选）`ENABLE_STRESS_TEST=1` 时追加：
+  - **stress-100**：创建 N 个 sandbox，持续发流量（默认 3m）
+  - **multi-template-stress**：多模板长时间压力测试（默认 30m）
 - 生成报告和日志
 
 ### 报告与状态定义

@@ -7,10 +7,28 @@ from e2b import Sandbox
 load_dotenv()
 
 
+def _is_retryable_ssl_error(stderr: str) -> bool:
+    """TLS/SSL 握手失败多为瞬时网络问题，可重试"""
+    if not stderr:
+        return False
+    s = stderr.lower()
+    return (
+        "ssl" in s
+        or "tls" in s
+        or "gnutls" in s
+        or "unexpected eof" in s
+        or "connection was non-properly terminated" in s
+        or "handshake" in s
+        or "errno 35" in s
+        or "curl: (35)" in s
+    )
+
+
 def main():
     template_id = os.getenv("TEMPLATE_ID", "test")
     max_seconds = float(os.getenv("NETWORK_MAX_SECONDS", "12"))
     web_host = os.getenv("NETWORK_WEB_HOST", "www.baidu.com")
+    retries = int(os.getenv("NETWORK_RETRIES", "3"))
 
     try:
         sbx = Sandbox.create(template_id, timeout=600, allow_internet_access=True)
@@ -33,17 +51,26 @@ def main():
         )
         if ip_res.exit_code != 0 or not (ip_res.stdout or "").strip():
             raise RuntimeError(f"Failed to parse web ip for {web_host}: {ip_res.stderr}")
-        web_ip = (ip_res.stdout or "").strip()
+        web_ip = (ip_res.stdout or "").strip().split()[0]
         print(f"Resolved {web_host} -> {web_ip}")
 
-        started = time.time()
-        res = sbx.commands.run(
-            f"bash -lc 'curl -sS -I -L -o /dev/null -w \"%{{http_code}} %{{time_total}}\" https://{web_host}'"
-        )
-        elapsed = time.time() - started
-
-        if res.exit_code != 0:
-            raise RuntimeError(f"curl failed: {res.stderr}")
+        # curl HTTPS（TLS 错误可重试）
+        last_err = None
+        for attempt in range(1, retries + 1):
+            started = time.time()
+            res = sbx.commands.run(
+                f"bash -lc 'curl -sS -I -L -o /dev/null -w \"%{{http_code}} %{{time_total}}\" --connect-timeout 15 -m 30 https://{web_host}'"
+            )
+            elapsed = time.time() - started
+            if res.exit_code == 0:
+                break
+            last_err = res.stderr or ""
+            if attempt < retries and _is_retryable_ssl_error(last_err):
+                delay = min(2**attempt, 8)
+                print(f"curl SSL/network error (attempt {attempt}/{retries}), retry in {delay}s: {last_err[:80]}...")
+                time.sleep(delay)
+            else:
+                raise RuntimeError(f"curl failed: {last_err}")
 
         raw = (res.stdout or "").strip()
         print("curl result:", raw)
@@ -60,11 +87,17 @@ def main():
                 f"Network too slow: curl={total:.2f}s elapsed={elapsed:.2f}s threshold={max_seconds:.2f}s"
             )
 
-        ip_head = sbx.commands.run(
-            f"bash -lc 'curl -sS -I -m 15 http://{web_ip} | head -n 1'"
-        )
-        if ip_head.exit_code != 0:
-            raise RuntimeError(f"curl to web_ip failed: {ip_head.stderr}")
+        # curl HTTP by IP（可重试）
+        for attempt in range(1, retries + 1):
+            ip_head = sbx.commands.run(
+                f"bash -lc 'curl -sS -I -m 15 --connect-timeout 10 http://{web_ip} | head -n 1'"
+            )
+            if ip_head.exit_code == 0:
+                break
+            if attempt < retries:
+                time.sleep(min(2**attempt, 8))
+            else:
+                raise RuntimeError(f"curl to web_ip failed: {ip_head.stderr}")
         ip_head_line = (ip_head.stdout or "").strip()
         if not ip_head_line.startswith("HTTP/"):
             raise RuntimeError(f"Unexpected web_ip curl response: {ip_head_line}")

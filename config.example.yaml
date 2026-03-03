@@ -1,0 +1,44 @@
+# E2B 自动化测试配置文件
+# 用法: ./test-automation.sh --config config.yaml performance
+# 或:   ./test-automation.sh -c config.yaml all
+
+# === 必填（或通过环境变量/命令行覆盖） ===
+E2B_API_KEY: ""          # 必填，可从环境变量 E2B_API_KEY 读取
+E2B_API_URL: ""          # 可选，API 地址
+
+# === 模板 ===
+TEMPLATE_ID: test
+TEMPLATE_SOURCE: image   # image | base（base 免私有镜像）
+TEMPLATE_ALIAS: test
+TEMPLATE_ALIASES: ""     # 多别名逗号分隔，优先于 TEMPLATE_ALIAS
+
+# === 大镜像测试（可选） ===
+ENABLE_LARGE_IMAGE_BUILD_TEST: 0
+TEMPLATE_LARGE_IMAGE: ""
+TEMPLATE_LARGE_ALIAS: large-image-test
+
+# === 网络测试 ===
+NETWORK_WEB_HOST: www.baidu.com
+NETWORK_MAX_SECONDS: 12
+NETWORK_RETRIES: 3        # SSL/TLS 瞬时错误重试次数
+
+# === Git 测试 ===
+GIT_TEST_REPO: https://github.com/octocat/Hello-World.git
+GIT_CLONE_RETRIES: 3      # TLS/网络错误重试次数
+
+# === 性能测试 ===
+CONCURRENT_COUNT: 50
+SINGLE_TEMPLATE_ID: test
+SINGLE_CONCURRENT_COUNT: 50
+MULTI_TEMPLATE_LIST: base,test
+MULTI_TEMPLATES_PER_TEST: 2
+MULTI_SANDBOXES_PER_TEMPLATE: 20
+MULTI_CONCURRENT_COUNT: 50
+
+# === 稳定性测试（耗时长，默认关闭） ===
+ENABLE_STRESS_TEST: 0
+STRESS_SANDBOX_COUNT: 100
+STRESS_TRAFFIC_VUS: 100
+STRESS_TRAFFIC_DURATION: 3m
+MULTI_TEMPLATE_STRESS_DURATION: 30m
+MULTI_TEMPLATE_STRESS_RATE: 60

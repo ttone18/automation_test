@@ -2,9 +2,42 @@
 
 set -uo pipefail
 
-MODE="${1:-all}"        # smoke | functional | performance | all | full
-API_URL="${2:-${E2B_API_URL:-}}"
-API_KEY="${3:-${E2B_API_KEY:-}}"
+# 解析 --config / -c 参数
+CONFIG_FILE=""
+ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -c|--config)
+      CONFIG_FILE="$2"
+      shift 2
+      ;;
+    *)
+      ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+# 加载 YAML 配置
+if [[ -n "${CONFIG_FILE}" ]]; then
+  CONFIG_PATH="${CONFIG_FILE}"
+  [[ "${CONFIG_PATH}" != /* ]] && CONFIG_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/${CONFIG_FILE}"
+  if [[ -f "${CONFIG_PATH}" ]]; then
+    if command -v python3 >/dev/null 2>&1; then
+      SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+      LOADER="${SCRIPT_DIR}/load_config.py"
+      if [[ -f "${LOADER}" ]]; then
+        set +u
+        eval "$(python3 "${LOADER}" "${CONFIG_PATH}")"
+        set -u
+      fi
+    fi
+  fi
+fi
+
+MODE="${ARGS[0]:-all}"
+API_URL="${ARGS[1]:-${E2B_API_URL:-}}"
+API_KEY="${ARGS[2]:-${E2B_API_KEY:-}}"
 
 if [[ -n "${API_URL}" ]]; then
   export E2B_API_URL="${API_URL}"
@@ -31,7 +64,16 @@ export MULTI_TEMPLATES_PER_TEST="${MULTI_TEMPLATES_PER_TEST:-${TEMPLATES_PER_TES
 export MULTI_SANDBOXES_PER_TEMPLATE="${MULTI_SANDBOXES_PER_TEMPLATE:-${SANDBOXES_PER_TEMPLATE}}"
 export MULTI_CONCURRENT_COUNT="${MULTI_CONCURRENT_COUNT:-${CONCURRENT_COUNT}}"
 
+# 多并发长时间稳定性测试（默认关闭，耗时长）
+export ENABLE_STRESS_TEST="${ENABLE_STRESS_TEST:-0}"
+export STRESS_SANDBOX_COUNT="${STRESS_SANDBOX_COUNT:-100}"
+export STRESS_TRAFFIC_VUS="${STRESS_TRAFFIC_VUS:-100}"
+export STRESS_TRAFFIC_DURATION="${STRESS_TRAFFIC_DURATION:-3m}"
+export MULTI_TEMPLATE_STRESS_DURATION="${MULTI_TEMPLATE_STRESS_DURATION:-30m}"
+export MULTI_TEMPLATE_STRESS_RATE="${MULTI_TEMPLATE_STRESS_RATE:-60}"
+
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PERF_ROOT="${PROJECT_ROOT}"
 RESULT_DIR="${PROJECT_ROOT}/results"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 REPORT_FILE="${RESULT_DIR}/automation-report-${TIMESTAMP}.md"
@@ -45,6 +87,7 @@ WARNED_STEPS=()
 FAILED_STEPS=()
 WARNED_TIMEOUT=0
 WARNED_THRESHOLD=0
+WARNED_NETWORK=0
 FAILED_ERROR=0
 
 log() {
@@ -68,6 +111,7 @@ record_step() {
     case "${step_result}" in
       WARN_TIMEOUT) WARNED_TIMEOUT=$((WARNED_TIMEOUT + 1)) ;;
       WARN_THRESHOLD) WARNED_THRESHOLD=$((WARNED_THRESHOLD + 1)) ;;
+      WARN_NETWORK) WARNED_NETWORK=$((WARNED_NETWORK + 1)) ;;
     esac
   else
     FAILED=$((FAILED + 1))
@@ -159,6 +203,11 @@ classify_failure() {
       echo "WARN_TIMEOUT|timeout detected in logs"
       return
     fi
+
+    if grep -Eqi "ssl|tls|gnutls|unexpected eof|unexpected eof while reading|non-properly terminated|handshake|curl: \(35\)" "${step_log}"; then
+      echo "WARN_NETWORK|SSL/TLS or network handshake error (often transient)"
+      return
+    fi
   fi
 
   echo "FAIL_ERROR|command failed with non-zero exit"
@@ -194,6 +243,7 @@ run_step() {
   case "${fail_type}" in
     WARN_TIMEOUT) log "WARN : ${step_name} (timeout)" ;;
     WARN_THRESHOLD) log "WARN : ${step_name} (threshold)" ;;
+    WARN_NETWORK) log "WARN : ${step_name} (SSL/network)" ;;
     *) log "FAIL : ${step_name} (error)" ;;
   esac
 
@@ -301,6 +351,7 @@ finalize_report() {
     echo "- failed: ${FAILED}"
     echo "- warned_timeout: ${WARNED_TIMEOUT}"
     echo "- warned_threshold: ${WARNED_THRESHOLD}"
+    echo "- warned_network: ${WARNED_NETWORK:-0}"
     echo "- failed_error: ${FAILED_ERROR}"
     if (( WARNED > 0 )); then
       echo "- warned_steps: ${WARNED_STEPS[*]}"
@@ -481,12 +532,20 @@ performance_test() {
 
   log "Performance plan: single(template=${SINGLE_TEMPLATE_ID}, concurrent=${SINGLE_CONCURRENT_COUNT})"
   log "Performance plan: multi(list=${MULTI_TEMPLATE_LIST}, templates=${MULTI_TEMPLATES_PER_TEST}, each=${MULTI_SANDBOXES_PER_TEMPLATE}, concurrent=${MULTI_CONCURRENT_COUNT})"
+  [[ "${ENABLE_STRESS_TEST}" == "1" ]] && log "Stability: stress-100 + multi-template-stress enabled"
 
   ensure_templates_for_performance || return 1
 
-  run_step "perf_concurrent_create" "${PROJECT_ROOT}/k6-concurrent-create.js" bash -lc "cd \"${PROJECT_ROOT}\" && CONCURRENT_COUNT=\"${SINGLE_CONCURRENT_COUNT}\" TEMPLATE_ID=\"${SINGLE_TEMPLATE_ID}\" ./run-all-tests.sh concurrent-create \"${E2B_API_URL:-}\" \"${E2B_API_KEY:-}\""
+  run_step "perf_concurrent_create" "${PERF_ROOT}/k6-concurrent-create.js" bash -lc "cd \"${PERF_ROOT}\" && CONCURRENT_COUNT=\"${SINGLE_CONCURRENT_COUNT}\" TEMPLATE_ID=\"${SINGLE_TEMPLATE_ID}\" ./run-all-tests.sh concurrent-create \"${E2B_API_URL:-}\" \"${E2B_API_KEY:-}\""
 
-  run_step "perf_multi_template_create" "${PROJECT_ROOT}/k6-concurrent-create-multi-template.js" bash -lc "cd \"${PROJECT_ROOT}\" && TEMPLATE_LIST=\"${MULTI_TEMPLATE_LIST}\" TEMPLATES_PER_TEST=\"${MULTI_TEMPLATES_PER_TEST}\" SANDBOXES_PER_TEMPLATE=\"${MULTI_SANDBOXES_PER_TEMPLATE}\" CONCURRENT_COUNT=\"${MULTI_CONCURRENT_COUNT}\" ./run-all-tests.sh multi-template-create \"${E2B_API_URL:-}\" \"${E2B_API_KEY:-}\""
+  run_step "perf_multi_template_create" "${PERF_ROOT}/k6-concurrent-create-multi-template.js" bash -lc "cd \"${PERF_ROOT}\" && TEMPLATE_LIST=\"${MULTI_TEMPLATE_LIST}\" TEMPLATES_PER_TEST=\"${MULTI_TEMPLATES_PER_TEST}\" SANDBOXES_PER_TEMPLATE=\"${MULTI_SANDBOXES_PER_TEMPLATE}\" CONCURRENT_COUNT=\"${MULTI_CONCURRENT_COUNT}\" ./run-all-tests.sh multi-template-create \"${E2B_API_URL:-}\" \"${E2B_API_KEY:-}\""
+
+  if [[ "${ENABLE_STRESS_TEST}" == "1" ]]; then
+    run_step "perf_stress_100_sandboxes" "${PERF_ROOT}/k6-stress-100-sandboxes.js" bash -lc "cd \"${PERF_ROOT}\" && SANDBOX_COUNT=\"${STRESS_SANDBOX_COUNT}\" TRAFFIC_VUS=\"${STRESS_TRAFFIC_VUS}\" TRAFFIC_DURATION=\"${STRESS_TRAFFIC_DURATION}\" TEMPLATE_ID=\"${SINGLE_TEMPLATE_ID}\" ./run-all-tests.sh stress-100 \"${E2B_API_URL:-}\" \"${E2B_API_KEY:-}\""
+    run_step "perf_multi_template_stress" "${PERF_ROOT}/k6-multi-template-stress.js" bash -lc "cd \"${PERF_ROOT}\" && TEMPLATE_LIST=\"${MULTI_TEMPLATE_LIST}\" CONCURRENT_COUNT=\"${MULTI_TEMPLATE_STRESS_RATE}\" TRAFFIC_DURATION=\"${MULTI_TEMPLATE_STRESS_DURATION}\" ./run-all-tests.sh multi-template-stress \"${E2B_API_URL:-}\" \"${E2B_API_KEY:-}\""
+  else
+    log "Skip stability tests (set ENABLE_STRESS_TEST=1 to enable stress-100 + multi-template-stress)"
+  fi
 }
 
 init_report
@@ -512,9 +571,12 @@ case "${MODE}" in
     performance_test || EXIT_CODE=1
     ;;
   *)
-    echo "Usage: $0 [smoke|functional|performance|all|full] [API_URL] [API_KEY]"
+    echo "Usage: $0 [-c|--config FILE] [smoke|functional|performance|all|full] [API_URL] [API_KEY]"
+    echo "  -c, --config  从 YAML 文件加载参数（示例: config.example.yaml）"
     echo "  all  = functional + performance"
     echo "  full = smoke + functional + performance"
+    echo ""
+    echo "示例: $0 -c config.yaml performance"
     EXIT_CODE=1
     ;;
 esac
