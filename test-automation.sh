@@ -21,6 +21,7 @@ export CONCURRENT_COUNT="${CONCURRENT_COUNT:-50}"
 export TEMPLATE_LIST="${TEMPLATE_LIST:-base,test}"
 export TEMPLATES_PER_TEST="${TEMPLATES_PER_TEST:-2}"
 export SANDBOXES_PER_TEMPLATE="${SANDBOXES_PER_TEMPLATE:-20}"
+export ENABLE_LARGE_IMAGE_BUILD_TEST="${ENABLE_LARGE_IMAGE_BUILD_TEST:-0}"
 
 # Explicit performance params to avoid single/multi confusion.
 export SINGLE_TEMPLATE_ID="${SINGLE_TEMPLATE_ID:-${TEMPLATE_ID}}"
@@ -394,7 +395,7 @@ PY"
 
 functional_test() {
   require_cmd python3 || return 1
-  run_step "functional_tail_stream_reconnect" "" bash -lc "cd \"${PROJECT_ROOT}\" && python3 test_sandbox_tail_reconnect.py"
+
   run_step "functional_template_build" "" bash -lc "cd \"${PROJECT_ROOT}\" && TEMPLATE_ALIAS=\"${TEMPLATE_ID}\" python3 test_template.py"
   run_step "functional_create_pause_resume_rw_same_sandbox" "" bash -lc "cd \"${PROJECT_ROOT}\" && export E2B_SANDBOX_ID=\$(python3 test_sandbox_create.py --id-only) && echo \"sandbox_id=\${E2B_SANDBOX_ID}\" && python3 - <<'PY'
 import os
@@ -460,6 +461,16 @@ rw_with_retry(fs, path, val)
 print('pre-pause read/write ok')
 PY
 status=$?; [ \$status -eq 0 ] || exit \$status; python3 test_sandbox_resume.py --pause-first"
+  run_step "functional_tail_stream_reconnect" "" bash -lc "cd \"${PROJECT_ROOT}\" && python3 test_sandbox_tail_reconnect.py"
+  run_step "functional_network_access_sandbox" "" bash -lc "cd \"${PROJECT_ROOT}\" && python3 test_sandbox_network.py"
+  run_step "functional_git_in_sandbox" "" bash -lc "cd \"${PROJECT_ROOT}\" && python3 test_sandbox_git.py"
+  run_step "functional_negative_error_paths" "" bash -lc "cd \"${PROJECT_ROOT}\" && python3 test_sandbox_errors.py"
+  run_step "functional_sandbox_isolation" "" bash -lc "cd \"${PROJECT_ROOT}\" && python3 test_sandbox_isolation.py"
+  if [[ "${ENABLE_LARGE_IMAGE_BUILD_TEST}" == "1" ]]; then
+    run_step "functional_large_image_template_build" "" bash -lc "cd \"${PROJECT_ROOT}\" && python3 test_template_large_image.py"
+  else
+    log "Skip large image build test (set ENABLE_LARGE_IMAGE_BUILD_TEST=1 to enable)"
+  fi
 }
 
 performance_test() {
@@ -473,9 +484,9 @@ performance_test() {
 
   ensure_templates_for_performance || return 1
 
-  run_step "perf_concurrent_create" "${PROJECT_ROOT}/k6-concurrent-create.js" bash -lc "cd \"${PROJECT_ROOT}\" && CONCURRENT_COUNT=\"${SINGLE_CONCURRENT_COUNT}\" TEMPLATE_ID=\"${SINGLE_TEMPLATE_ID}\" ./run-all-tests.sh concurrent-create \"${E2B_API_URL}\" \"${E2B_API_KEY}\""
+  run_step "perf_concurrent_create" "${PROJECT_ROOT}/k6-concurrent-create.js" bash -lc "cd \"${PROJECT_ROOT}\" && CONCURRENT_COUNT=\"${SINGLE_CONCURRENT_COUNT}\" TEMPLATE_ID=\"${SINGLE_TEMPLATE_ID}\" ./run-all-tests.sh concurrent-create \"${E2B_API_URL:-}\" \"${E2B_API_KEY:-}\""
 
-  run_step "perf_multi_template_create" "${PROJECT_ROOT}/k6-concurrent-create-multi-template.js" bash -lc "cd \"${PROJECT_ROOT}\" && TEMPLATE_LIST=\"${MULTI_TEMPLATE_LIST}\" TEMPLATES_PER_TEST=\"${MULTI_TEMPLATES_PER_TEST}\" SANDBOXES_PER_TEMPLATE=\"${MULTI_SANDBOXES_PER_TEMPLATE}\" CONCURRENT_COUNT=\"${MULTI_CONCURRENT_COUNT}\" ./run-all-tests.sh multi-template-create \"${E2B_API_URL}\" \"${E2B_API_KEY}\""
+  run_step "perf_multi_template_create" "${PROJECT_ROOT}/k6-concurrent-create-multi-template.js" bash -lc "cd \"${PROJECT_ROOT}\" && TEMPLATE_LIST=\"${MULTI_TEMPLATE_LIST}\" TEMPLATES_PER_TEST=\"${MULTI_TEMPLATES_PER_TEST}\" SANDBOXES_PER_TEMPLATE=\"${MULTI_SANDBOXES_PER_TEMPLATE}\" CONCURRENT_COUNT=\"${MULTI_CONCURRENT_COUNT}\" ./run-all-tests.sh multi-template-create \"${E2B_API_URL:-}\" \"${E2B_API_KEY:-}\""
 }
 
 init_report

@@ -1,32 +1,64 @@
-1. 测试目标
-- 验证模板构建流程可用（build 能成功）
-- 验证 sandbox 生命周期核心能力（创建、写读、pause、resume、销毁）
+# E2B 自动化测试
+
+## 1. 测试目标
+
+- 验证模板构建流程可用（build 能成功，支持 base 镜像与私有镜像）
+- 验证 sandbox 生命周期核心能力（创建、读写、pause、resume、销毁）
+- 验证网络访问、Git、错误处理、沙箱隔离等能力
+- 验证 tail 流式输出重连场景
 - 验证并发创建能力（单模板与多模板）
 - 输出统一测试报告与步骤日志，便于复盘和 CI 接入
-2. 脚本入口
-- 主入口：test-automation.sh
-- 子脚本：
-  - test_template.py
-  - test_sandbox_create.py
-  - test_sandbox_resume.py
-  - run-all-tests.sh
-  - k6-concurrent-create.js
-  - k6-concurrent-create-multi-template.js
-3. 模式说明
-- smoke：快速冒烟（创建、命令执行、读写、销毁）
-- functional：功能测试（模板构建 + 生命周期链路）
-- performance：性能测试（单模板并发 + 多模板并发）
-- all：functional + performance（推荐“全量”）
-4. 常用命令
-冒烟测试
+
+## 2. 脚本入口
+
+- **主入口**：`test-automation.sh`
+- **子脚本**：
+  - `test_template.py` - 模板构建（支持 `TEMPLATE_SOURCE=base` 免私有镜像）
+  - `test_template_large_image.py` - 大镜像模板构建（可选）
+  - `test_sandbox_create.py` - 创建 sandbox 并返回 ID
+  - `test_sandbox_resume.py` - pause/resume 读写验证
+  - `test_sandbox_tail_reconnect.py` - tail 流重连测试
+  - `test_sandbox_network.py` - 网络访问（DNS、curl）
+  - `test_sandbox_git.py` - Git 克隆
+  - `test_sandbox_errors.py` - 错误路径（读不存在文件、无效命令）
+  - `test_sandbox_isolation.py` - 多沙箱隔离验证
+  - `test_tail.py` - tail -f 场景压力测试（独立运行）
+  - `run-all-tests.sh` - k6 性能子脚本
+  - `k6-concurrent-create.js` - 单模板并发
+  - `k6-concurrent-create-multi-template.js` - 多模板并发
+
+## 3. 模式说明
+
+| 模式 | 说明 |
+|------|------|
+| smoke | 快速冒烟（创建、命令执行、读写、销毁） |
+| functional | 功能测试（模板构建 + 生命周期 + 网络 + Git + 错误 + 隔离 + 大镜像可选） |
+| performance | 性能测试（单模板并发 + 多模板并发） |
+| all | functional + performance（推荐“全量”） |
+| full | smoke + functional + performance（完整回归） |
+
+## 4. 常用命令
+
+### 冒烟测试
 ```bash
 TEMPLATE_ID=test ./test-automation.sh smoke "" "$E2B_API_KEY"
 ```
-功能测试
+
+### 功能测试
 ```bash
 TEMPLATE_ID=test ./test-automation.sh functional "" "$E2B_API_KEY"
 ```
-性能测试
+
+### 功能测试（含大镜像构建）
+```bash
+ENABLE_LARGE_IMAGE_BUILD_TEST=1 \
+TEMPLATE_LARGE_IMAGE=your-registry/large-image:tag \
+TEMPLATE_REGISTRY_USERNAME=user \
+TEMPLATE_REGISTRY_PASSWORD=pass \
+TEMPLATE_ID=test ./test-automation.sh functional "" "$E2B_API_KEY"
+```
+
+### 性能测试
 ```bash
 SINGLE_TEMPLATE_ID=test \
 SINGLE_CONCURRENT_COUNT=60 \
@@ -36,7 +68,8 @@ MULTI_SANDBOXES_PER_TEMPLATE=20 \
 MULTI_CONCURRENT_COUNT=60 \
 ./test-automation.sh performance "" "$E2B_API_KEY"
 ```
-功能 + 性能（all)
+
+### 功能 + 性能（all）
 ```bash
 SINGLE_TEMPLATE_ID=test \
 SINGLE_CONCURRENT_COUNT=60 \
@@ -47,54 +80,85 @@ MULTI_CONCURRENT_COUNT=60 \
 TEMPLATE_ID=test \
 ./test-automation.sh all "" "$E2B_API_KEY"
 ```
-5. 参数说明
-通用参数
-- TEMPLATE_ID：功能测试默认模板别名
-  - 第 2 个位置参数：API_URL（可传空字符串，使用环境变量）
-  - 第 3 个位置参数：API_KEY（一般传 "$E2B_API_KEY"）
 
-- 性能参数（单模板）
-  - SINGLE_TEMPLATE_ID：单模板并发测试所用模板
-  - SINGLE_CONCURRENT_COUNT：单模板并发数
+### 完整回归（full）
+```bash
+TEMPLATE_ID=test ./test-automation.sh full "" "$E2B_API_KEY"
+```
 
-- 性能参数（多模板）
-  - MULTI_TEMPLATE_LIST：多模板候选列表，逗号分隔
-  - MULTI_TEMPLATES_PER_TEST：本次测试实际使用模板数
-  - MULTI_SANDBOXES_PER_TEMPLATE：每个模板创建的 sandbox 数
-  - MULTI_CONCURRENT_COUNT：多模板场景并发数
-6. 执行流程
+## 5. 参数说明
 
-冒烟测试
-  - 创建 1 个 sandbox
-  - 执行简单命令(read/write)
-  - 停止/销毁 sandbox
-  - 输出简报（PASS/FAIL）
-    
-功能测试
-  - 构建模板（test_template.py）
-  - 创建 sandbox 并进行读写检查
-  - pause/resume 后再次验证
-  - 生成报告和日志
-    
-性能测试
+### 通用参数
+- `TEMPLATE_ID`：功能测试默认模板别名
+- 第 2 个位置参数：`API_URL`（可传空字符串，使用环境变量）
+- 第 3 个位置参数：`API_KEY`（一般传 `"$E2B_API_KEY"`）
 
-检查性能
-  - 测试需要的模板是否存在，不存在则自动 build
-  - 运行单模板并发创建
-  - 运行多模板并发创建
-  - 生成报告和日志
-  - 报告与状态定义
+### 模板构建
+- `TEMPLATE_SOURCE`：`image`（默认，私有镜像）或 `base`（免私有镜像）
+- `TEMPLATE_ALIAS` / `TEMPLATE_ALIASES`：构建目标别名（多别名逗号分隔）
+- `TEMPLATE_IMAGE`：私有镜像地址（`TEMPLATE_SOURCE=image` 时）
+- `TEMPLATE_REGISTRY_USERNAME` / `TEMPLATE_REGISTRY_PASSWORD`：镜像仓库认证
 
-报告路径：
-  - 总报告：results/automation-report-*.md
-  - 步骤日志：results/*.log
+### 大镜像测试（可选）
+- `ENABLE_LARGE_IMAGE_BUILD_TEST`：`1` 时执行大镜像构建
+- `TEMPLATE_LARGE_IMAGE`：大镜像地址（必填）
+- `TEMPLATE_LARGE_ALIAS`：大镜像模板别名（默认 `large-image-test`）
+- `TEMPLATE_LARGE_CPU` / `TEMPLATE_LARGE_MEMORY_MB`：构建资源配置
 
-步骤状态：
-  - PASS：执行成功，且没有被识别为阈值/超时问题
-  - WARN_THRESHOLD：执行成功但性能阈值未达标（告警，不计入失败）
-  - FAIL_ERROR：执行错误（计入失败，并影响退出码）
+### 网络测试
+- `NETWORK_WEB_HOST`：用于 curl 校验的主机（默认 `www.baidu.com`）
+- `NETWORK_MAX_SECONDS`：curl 超时阈值（秒，默认 `12`）
 
-汇总字段：
-  - passed：通过数
-  - warned：告警数
-  - failed：失败数（仅硬失败）
+### Git 测试
+- `GIT_TEST_REPO`：克隆的 Git 仓库（默认 `https://github.com/octocat/Hello-World.git`）
+
+### 性能参数（单模板）
+- `SINGLE_TEMPLATE_ID`：单模板并发测试所用模板
+- `SINGLE_CONCURRENT_COUNT`：单模板并发数
+
+### 性能参数（多模板）
+- `MULTI_TEMPLATE_LIST`：多模板候选列表，逗号分隔
+- `MULTI_TEMPLATES_PER_TEST`：本次测试实际使用模板数
+- `MULTI_SANDBOXES_PER_TEMPLATE`：每个模板创建的 sandbox 数
+- `MULTI_CONCURRENT_COUNT`：多模板场景并发数
+
+## 6. 执行流程
+
+### 冒烟测试
+- 创建 1 个 sandbox
+- 执行简单命令、读写
+- 停止/销毁 sandbox
+- 输出简报（PASS/FAIL）
+
+### 功能测试
+1. 构建模板（`test_template.py`）
+2. 创建 sandbox，pre-pause 读写检查
+3. pause/resume 后再次验证（`test_sandbox_resume.py`）
+4. tail 流重连（`test_sandbox_tail_reconnect.py`）
+5. 网络访问（DNS、curl）
+6. Git 克隆
+7. 错误路径（读不存在文件、无效命令）
+8. 沙箱隔离
+9. 大镜像构建（`ENABLE_LARGE_IMAGE_BUILD_TEST=1` 时）
+
+### 性能测试
+- 检查所需模板是否存在，不存在则自动 build
+- 运行单模板并发创建
+- 运行多模板并发创建
+- 生成报告和日志
+
+### 报告与状态定义
+
+**报告路径**：
+- 总报告：`results/automation-report-*.md`
+- 步骤日志：`results/*.log`
+
+**步骤状态**：
+- `PASS`：执行成功
+- `WARN_TIMEOUT`：超时告警，不计入失败
+- `WARN_THRESHOLD`：性能阈值未达标，不计入失败
+- `FAIL_ERROR`：执行错误，影响退出码
+
+**汇总字段**：
+- passed / warned / failed
+- warned_timeout / warned_threshold / failed_error

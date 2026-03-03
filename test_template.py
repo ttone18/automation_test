@@ -20,7 +20,21 @@ def _parse_aliases():
     return [alias]
 
 
+def _mask_secret(value: str) -> str:
+    if not value:
+        return "unset"
+    if len(value) <= 10:
+        return "***"
+    return f"{value[:6]}...{value[-4:]}"
+
+
 def _build_template():
+    source = (os.getenv("TEMPLATE_SOURCE") or "image").strip().lower()
+
+    # SaaS-friendly mode: avoid private registry dependency.
+    if source == "base":
+        return AsyncTemplate().from_base_image()
+
     image = os.getenv("TEMPLATE_IMAGE", DEFAULT_IMAGE)
     username = os.getenv("TEMPLATE_REGISTRY_USERNAME", DEFAULT_USERNAME)
     password = os.getenv("TEMPLATE_REGISTRY_PASSWORD", DEFAULT_PASSWORD)
@@ -29,7 +43,8 @@ def _build_template():
 
 async def main():
     aliases = _parse_aliases()
-    print(f"E2B_API_KEY from env: {os.getenv('E2B_API_KEY')}")
+    print(f"E2B_API_KEY from env: {_mask_secret(os.getenv('E2B_API_KEY', ''))}")
+    print(f"TEMPLATE_SOURCE: {(os.getenv('TEMPLATE_SOURCE') or 'image').strip().lower()}")
     print(f"Target aliases: {', '.join(aliases)}")
 
     for alias in aliases:
