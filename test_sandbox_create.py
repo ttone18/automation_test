@@ -2,7 +2,8 @@ import argparse
 import os
 
 from dotenv import load_dotenv
-from e2b import Sandbox
+
+from e2b_test_utils import create_sandbox_with_retry
 
 load_dotenv()
 
@@ -13,12 +14,7 @@ def main():
     args = parser.parse_args()
 
     template_id = os.getenv("TEMPLATE_ID", "test")
-
-    try:
-        sbx = Sandbox.create(template_id, timeout=3600, allow_internet_access=True)
-    except TypeError:
-        # Backward compatibility if installed SDK does not support some kwargs.
-        sbx = Sandbox.create(template_id, timeout=3600)
+    sbx = create_sandbox_with_retry(template_id, timeout=3600)
 
     if args.id_only:
         print(sbx.sandbox_id)

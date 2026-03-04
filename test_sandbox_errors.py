@@ -3,6 +3,8 @@ import os
 from dotenv import load_dotenv
 from e2b import Sandbox
 
+from e2b_test_utils import create_sandbox_with_retry
+
 load_dotenv()
 
 
@@ -12,8 +14,7 @@ def get_fs(sbx: Sandbox):
 
 def main():
     template_id = os.getenv("TEMPLATE_ID", "test")
-
-    sbx = Sandbox.create(template_id, timeout=600)
+    sbx = create_sandbox_with_retry(template_id, timeout=600)
     print("Created:", sbx.sandbox_id)
     try:
         fs = get_fs(sbx)

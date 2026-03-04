@@ -5,6 +5,8 @@ import time
 from dotenv import load_dotenv
 from e2b import Sandbox
 
+from e2b_test_utils import create_sandbox_with_retry
+
 load_dotenv()
 
 
@@ -29,12 +31,7 @@ def main():
     template_id = os.getenv("TEMPLATE_ID", "test")
     repo = os.getenv("GIT_TEST_REPO", "https://github.com/octocat/Hello-World.git")
     retries = int(os.getenv("GIT_CLONE_RETRIES", "3"))
-
-    try:
-        sbx = Sandbox.create(template_id, timeout=600, allow_internet_access=True)
-    except TypeError:
-        sbx = Sandbox.create(template_id, timeout=600)
-
+    sbx = create_sandbox_with_retry(template_id, timeout=600)
     print("Created:", sbx.sandbox_id)
     try:
         check = sbx.commands.run("bash -lc 'git --version'")

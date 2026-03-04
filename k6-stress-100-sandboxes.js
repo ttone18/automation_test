@@ -58,6 +58,7 @@ const API_BASE_URL = __ENV.E2B_API_URL || __ENV.API_BASE_URL || 'http://localhos
 const API_KEY = __ENV.E2B_API_KEY || __ENV.API_KEY || '';
 const TEMPLATE_ID = __ENV.TEMPLATE_ID || 'base';
 const MAX_WAIT_TIME = parseInt(__ENV.MAX_WAIT_TIME || '180000', 10); // 3分钟超时
+const SANDBOX_TIMEOUT = parseInt(__ENV.SANDBOX_TIMEOUT || '3600', 10); // sandbox 存活时间（秒）
 
 if (!API_KEY) {
     throw new Error('E2B_API_KEY or API_KEY is required for stress test');
@@ -78,7 +79,7 @@ export function createSandboxes() {
     try {
         const payload = JSON.stringify({
             templateID: TEMPLATE_ID,
-            timeout: 3600, // 1小时超时，确保压测期间不会过期
+            timeout: SANDBOX_TIMEOUT,
         });
 
         const res = http.post(`${API_BASE_URL}/sandboxes`, payload, {

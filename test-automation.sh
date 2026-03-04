@@ -88,6 +88,7 @@ FAILED_STEPS=()
 WARNED_TIMEOUT=0
 WARNED_THRESHOLD=0
 WARNED_NETWORK=0
+WARNED_CAPACITY=0
 FAILED_ERROR=0
 
 log() {
@@ -112,6 +113,7 @@ record_step() {
       WARN_TIMEOUT) WARNED_TIMEOUT=$((WARNED_TIMEOUT + 1)) ;;
       WARN_THRESHOLD) WARNED_THRESHOLD=$((WARNED_THRESHOLD + 1)) ;;
       WARN_NETWORK) WARNED_NETWORK=$((WARNED_NETWORK + 1)) ;;
+      WARN_CAPACITY) WARNED_CAPACITY=$((WARNED_CAPACITY + 1)) ;;
     esac
   else
     FAILED=$((FAILED + 1))
@@ -208,6 +210,11 @@ classify_failure() {
       echo "WARN_NETWORK|SSL/TLS or network handshake error (often transient)"
       return
     fi
+
+    if grep -Eqi "500:.*failed to place sandbox|failed to place sandbox|no nodes available|no available" "${step_log}"; then
+      echo "WARN_CAPACITY|cluster has no capacity to place sandbox (500/infra)"
+      return
+    fi
   fi
 
   echo "FAIL_ERROR|command failed with non-zero exit"
@@ -244,6 +251,7 @@ run_step() {
     WARN_TIMEOUT) log "WARN : ${step_name} (timeout)" ;;
     WARN_THRESHOLD) log "WARN : ${step_name} (threshold)" ;;
     WARN_NETWORK) log "WARN : ${step_name} (SSL/network)" ;;
+    WARN_CAPACITY) log "WARN : ${step_name} (capacity)" ;;
     *) log "FAIL : ${step_name} (error)" ;;
   esac
 
@@ -352,6 +360,7 @@ finalize_report() {
     echo "- warned_timeout: ${WARNED_TIMEOUT}"
     echo "- warned_threshold: ${WARNED_THRESHOLD}"
     echo "- warned_network: ${WARNED_NETWORK:-0}"
+    echo "- warned_capacity: ${WARNED_CAPACITY:-0}"
     echo "- failed_error: ${FAILED_ERROR}"
     if (( WARNED > 0 )); then
       echo "- warned_steps: ${WARNED_STEPS[*]}"

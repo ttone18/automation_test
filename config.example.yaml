@@ -8,6 +8,7 @@ E2B_API_URL: ""          # 可选，API 地址
 
 # === 模板 ===
 TEMPLATE_ID: test
+SANDBOX_CREATE_RETRIES: 3   # 500 容量不足时重试次数
 TEMPLATE_SOURCE: image   # image | base（base 免私有镜像）
 TEMPLATE_ALIAS: test
 TEMPLATE_ALIASES: ""     # 多别名逗号分隔，优先于 TEMPLATE_ALIAS

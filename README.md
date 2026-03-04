@@ -28,6 +28,13 @@
   - `k6-concurrent-create.js` - 单模板并发
   - `k6-concurrent-create-multi-template.js` - 多模板并发
 
+### 长稳 + 波测场景（独立）
+
+- **入口**：`run_long_stability_burst.sh` 或 `python3 long_stability_burst_test.py`
+- **配置**：`long_stability_burst_config.example.yaml`
+- **场景**：长稳 3 sandbox 持续压测 7×24h，波测 30 sandbox 并发 10 分钟
+- **飞书告警**：日志出现错误时自动推送至飞书群机器人
+
 ## 3. 模式说明
 
 | 模式 | 说明 |
@@ -124,6 +131,22 @@ TEMPLATE_ID=test \
 ### 完整回归（full）
 ```bash
 TEMPLATE_ID=test ./test-automation.sh full "" "$E2B_API_KEY"
+```
+
+### 长稳 + 波测（7×24h 长稳 + 10min 波测，飞书告警）
+```bash
+# 1. 复制配置并填写飞书 webhook
+cp long_stability_burst_config.example.yaml long_stability_burst_config.yaml
+# 编辑 FEISHU_WEBHOOK_URL、E2B_API_KEY
+
+# 2. 运行（先波测 10 分钟，再长稳 7 天）
+E2B_API_KEY=xxx FEISHU_WEBHOOK_URL=xxx python3 long_stability_burst_test.py -c long_stability_burst_config.yaml
+
+# 或仅波测（10 分钟，用于快速验证）
+python3 long_stability_burst_test.py --burst-only
+
+# 或仅长稳（7×24h）
+python3 long_stability_burst_test.py --long-only
 ```
 
 ## 6. 参数说明

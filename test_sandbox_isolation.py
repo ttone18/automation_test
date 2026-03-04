@@ -4,6 +4,8 @@ import time
 from dotenv import load_dotenv
 from e2b import Sandbox
 
+from e2b_test_utils import create_sandbox_with_retry
+
 load_dotenv()
 
 
@@ -17,8 +19,8 @@ def main():
     v1 = f"sbx1-{int(time.time())}"
     v2 = f"sbx2-{int(time.time())}"
 
-    sbx1 = Sandbox.create(template_id, timeout=600)
-    sbx2 = Sandbox.create(template_id, timeout=600)
+    sbx1 = create_sandbox_with_retry(template_id, timeout=600)
+    sbx2 = create_sandbox_with_retry(template_id, timeout=600)
     print("Created:", sbx1.sandbox_id, sbx2.sandbox_id)
 
     try:

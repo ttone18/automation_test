@@ -1,0 +1,22 @@
+# 长稳 + 波测 场景配置
+# 用法: 复制为 long_stability_burst_config.yaml 并配置 FEISHU_WEBHOOK_URL
+# 运行: E2B_API_KEY=xxx FEISHU_WEBHOOK_URL=xxx python3 long_stability_burst_test.py
+# 或:   ./run_long_stability_burst.sh
+
+# === 必填 ===
+E2B_API_KEY: ""
+E2B_API_URL: ""           # 可选，默认从环境变量
+
+# === 飞书机器人告警 ===
+FEISHU_WEBHOOK_URL: ""    # 飞书群机器人 webhook，如 https://open.feishu.cn/open-apis/bot/v2/hook/xxx
+
+# === 长稳：3 sandbox 持续压测 7*24 小时 ===
+LONG_STABILITY_COUNT: 3
+LONG_STABILITY_DURATION: 168h    # 7*24 小时，可改为 1h 做短时验证
+
+# === 波测：30 sandbox 并发 10 分钟 ===
+BURST_CONCURRENT: 30
+BURST_DURATION: 10m
+
+# === 模板 ===
+TEMPLATE_ID: test

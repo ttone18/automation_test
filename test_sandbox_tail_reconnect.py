@@ -4,6 +4,8 @@ import time
 from dotenv import load_dotenv
 from e2b import Sandbox
 
+from e2b_test_utils import create_sandbox_with_retry
+
 load_dotenv()
 
 
@@ -23,12 +25,7 @@ def wait_until(check, retries=6, base_delay=1.0, name="condition"):
 
 def main():
     template_id = os.getenv("TEMPLATE_ID", "test")
-
-    try:
-        sbx = Sandbox.create(template_id, timeout=600, allow_internet_access=True)
-    except TypeError:
-        sbx = Sandbox.create(template_id, timeout=600)
-
+    sbx = create_sandbox_with_retry(template_id, timeout=600)
     print("Created:", sbx.sandbox_id)
     pid = None
     try:
